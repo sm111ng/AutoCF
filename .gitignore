@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+
+logs/
+
+results/
+
+ips_backup*/
+
+.venv/
+
+data/
+
+output/*.json
+output/*.yaml
+output/*.txt
