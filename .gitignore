@@ -1,16 +1,15 @@
+.venv/
 __pycache__/
 *.pyc
 
 logs/
-
 results/
-
-ips_backup*/
-
-.venv/
-
 data/
 
-output/*.json
-output/*.yaml
-output/*.txt
+output/*
+!output/proxyip.txt
+!output/clash.yaml
+!output/subscription.txt
+!output/final_nodes.json
+
+ips_backup_*/
