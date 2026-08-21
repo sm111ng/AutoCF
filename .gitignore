@@ -1,15 +1,33 @@
+# Python
 .venv/
 __pycache__/
-*.pyc
+*.py[cod]
 
+# Sensitive subscription / node data
+decoded_sub.txt
+test_sub.txt
+real_usable_nodes.txt
+real_usable_subscription.txt
+real_results.csv
+real_summary.txt
+usable_nodes.txt
+usable_subscription.txt
+results.csv
+summary.txt
+
+# Xray binary
+xray.exe
+
+# Runtime/generated data
+data/
 logs/
 results/
-data/
-
-output/*
-!output/proxyip.txt
-!output/clash.yaml
-!output/subscription.txt
-!output/final_nodes.json
-
+output/
 ips_backup_*/
+
+# Local temporary files
+*.log
+*.tmp
+.env
+
+# Keep empty directories out of Git
