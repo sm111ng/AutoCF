@@ -134,7 +134,7 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
 
-          Write-Host ""
+          $env:PYTHONIOENCODING = "utf-8"`r`n          $env:PYTHONUTF8 = "1"`r`n`r`n                    Write-Host ""
           Write-Host "=============================================="
           Write-Host "[1/3] HTTPS / SNI / GeoIP"
           Write-Host "=============================================="
@@ -150,7 +150,7 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
 
-          Write-Host ""
+          $env:PYTHONIOENCODING = "utf-8"`r`n          $env:PYTHONUTF8 = "1"`r`n`r`n                    Write-Host ""
           Write-Host "=============================================="
           Write-Host "[2/3] REAL VLESS TEST"
           Write-Host "=============================================="
@@ -166,7 +166,7 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
 
-          Write-Host ""
+          $env:PYTHONIOENCODING = "utf-8"`r`n          $env:PYTHONUTF8 = "1"`r`n`r`n                    Write-Host ""
           Write-Host "=============================================="
           Write-Host "[3/3] FINALIZE"
           Write-Host "=============================================="
@@ -239,3 +239,4 @@ jobs:
           else {
             Write-Host "No public output changes."
           }
+
