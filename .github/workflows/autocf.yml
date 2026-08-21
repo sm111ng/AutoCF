@@ -1,13 +1,16 @@
-name: AutoCF Automatic IP Selector
+﻿name: AutoCF Automatic IP Selector
 
 on:
   workflow_dispatch:
   schedule:
-    # ?????? 01:00 = UTC ??? 17:00
     - cron: "0 17 * * *"
 
 permissions:
   contents: write
+
+env:
+  PYTHONIOENCODING: utf-8
+  PYTHONUTF8: "1"
 
 jobs:
   autocf:
@@ -21,6 +24,19 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.13"
+
+      - name: Force UTF-8
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
+          [Console]::InputEncoding = [System.Text.UTF8Encoding]::new()
+
+          $env:PYTHONUTF8 = "1"
+          $env:PYTHONIOENCODING = "utf-8"
+
+          Write-Host "UTF-8 environment configured."
 
       - name: Download Xray
         shell: powershell
@@ -40,11 +56,10 @@ jobs:
             Select-Object -First 1
 
           if (!$asset) {
-            throw "??? Xray-windows-64.zip"
+            throw "Xray-windows-64.zip not found"
           }
 
           Write-Host "Xray version: $($api.tag_name)"
-          Write-Host "Download: $($asset.browser_download_url)"
 
           Invoke-WebRequest `
             -Uri $asset.browser_download_url `
@@ -62,7 +77,7 @@ jobs:
             Select-Object -First 1
 
           if (!$xray) {
-            throw "Xray ???????? xray.exe"
+            throw "xray.exe not found after extraction"
           }
 
           Copy-Item $xray.FullName "$PWD\xray.exe" -Force
@@ -77,7 +92,7 @@ jobs:
           $ErrorActionPreference = "Stop"
 
           if ([string]::IsNullOrWhiteSpace($env:SUBSCRIPTION_URL)) {
-            throw "GitHub Secret SUBSCRIPTION_URL ????"
+            throw "GitHub Secret SUBSCRIPTION_URL is missing"
           }
 
           Write-Host "Downloading subscription..."
@@ -91,30 +106,33 @@ jobs:
             "$PWD\subscription_raw.txt" `
             -Raw
 
-          # ?????????? VLESS
           if ($raw -match "vless://") {
+
             $raw | Set-Content `
               "$PWD\decoded_sub.txt" `
               -Encoding UTF8
+
           }
           else {
-            # ?? Base64 ??
+
             $clean = ($raw -replace "\s", "")
 
             try {
+
               $bytes = [Convert]::FromBase64String($clean)
               $decoded = [Text.Encoding]::UTF8.GetString($bytes)
 
               if ($decoded -notmatch "vless://") {
-                throw "Base64 ??????? vless://"
+                throw "Decoded subscription does not contain vless://"
               }
 
               $decoded | Set-Content `
                 "$PWD\decoded_sub.txt" `
                 -Encoding UTF8
+
             }
             catch {
-              throw "??????? VLESS / Base64 VLESS"
+              throw "Subscription is neither plain VLESS nor Base64 VLESS"
             }
           }
 
@@ -123,10 +141,10 @@ jobs:
             Where-Object { $_ -match "^vless://" }
           ).Count
 
-          Write-Host "?? VLESS ??: $count"
+          Write-Host "VLESS nodes found: $count"
 
           if ($count -eq 0) {
-            throw "??????? VLESS ??"
+            throw "No VLESS nodes found"
           }
 
       - name: Run AutoCF scanner
@@ -134,7 +152,7 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
 
-          $env:PYTHONIOENCODING = "utf-8"`r`n          $env:PYTHONUTF8 = "1"`r`n`r`n                    Write-Host ""
+          Write-Host ""
           Write-Host "=============================================="
           Write-Host "[1/3] HTTPS / SNI / GeoIP"
           Write-Host "=============================================="
@@ -142,7 +160,7 @@ jobs:
           python -X utf8 .\scanner_v4.py
 
           if ($LASTEXITCODE -ne 0) {
-            throw "scanner_v4.py ????"
+            throw "scanner_v4.py failed"
           }
 
       - name: Run real VLESS test
@@ -150,7 +168,7 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
 
-          $env:PYTHONIOENCODING = "utf-8"`r`n          $env:PYTHONUTF8 = "1"`r`n`r`n                    Write-Host ""
+          Write-Host ""
           Write-Host "=============================================="
           Write-Host "[2/3] REAL VLESS TEST"
           Write-Host "=============================================="
@@ -158,7 +176,7 @@ jobs:
           python -X utf8 .\vless_real_test.py
 
           if ($LASTEXITCODE -ne 0) {
-            throw "vless_real_test.py ????"
+            throw "vless_real_test.py failed"
           }
 
       - name: Generate final subscription
@@ -166,7 +184,7 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
 
-          $env:PYTHONIOENCODING = "utf-8"`r`n          $env:PYTHONUTF8 = "1"`r`n`r`n                    Write-Host ""
+          Write-Host ""
           Write-Host "=============================================="
           Write-Host "[3/3] FINALIZE"
           Write-Host "=============================================="
@@ -174,7 +192,7 @@ jobs:
           python -X utf8 .\finalize_results.py
 
           if ($LASTEXITCODE -ne 0) {
-            throw "finalize_results.py ????"
+            throw "finalize_results.py failed"
           }
 
       - name: Prepare public output
@@ -217,7 +235,6 @@ jobs:
               -Force
           }
 
-          Write-Host ""
           Write-Host "Public output prepared."
 
       - name: Commit generated public output
@@ -239,5 +256,3 @@ jobs:
           else {
             Write-Host "No public output changes."
           }
-
-
