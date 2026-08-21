@@ -61,27 +61,27 @@ REQUIRE_CLOUDFLARE = True
 # =========================
 
 COUNTRY_MAP = {
-    "JP": "鏃ユ湰",
-    "US": "缇庡浗",
-    "HK": "棣欐腐",
-    "SG": "鏂板姞鍧?,
-    "KR": "闊╁浗",
-    "TW": "鍙版咕",
-    "CN": "涓浗",
-    "GB": "鑻卞浗",
-    "DE": "寰峰浗",
-    "NL": "鑽峰叞",
-    "FR": "娉曞浗",
-    "CA": "鍔犳嬁澶?,
-    "AU": "婢冲ぇ鍒╀簹",
-    "IN": "鍗板害",
-    "RU": "淇勭綏鏂?,
-    "TR": "鍦熻€冲叾",
-    "SE": "鐟炲吀",
-    "FI": "鑺叞",
-    "PL": "娉㈠叞",
-    "IT": "鎰忓ぇ鍒?,
-    "ES": "瑗跨彮鐗?,
+    "JP": "Japan",
+    "US": "United States",
+    "HK": "Hong Kong",
+    "SG": "Singapore",
+    "KR": "South Korea",
+    "TW": "Taiwan",
+    "CN": "China",
+    "GB": "United Kingdom",
+    "DE": "Germany",
+    "NL": "Netherlands",
+    "FR": "France",
+    "CA": "Canada",
+    "AU": "Australia",
+    "IN": "India",
+    "RU": "Russia",
+    "TR": "Turkey",
+    "SE": "Sweden",
+    "FI": "Finland",
+    "PL": "Poland",
+    "IT": "Italy",
+    "ES": "Spain",
 }
 
 # =========================
@@ -334,21 +334,21 @@ def main():
     print("=" * 72)
 
     if not shutil_which("curl.exe"):
-        print("閿欒锛氭壘涓嶅埌 curl.exe")
-        print("Windows 10/11 閫氬父鑷甫 curl.exe銆?)
+        print("Windows curl.exe is required.")
+        print("Windows curl.exe is required.")
         sys.exit(1)
 
     nodes = parse_vless_file(SUB_FILE)
 
-    print(f"鍙戠幇 VLESS 鑺傜偣: {len(nodes)}")
+    print("VLESS scanner running...")
 
     if not nodes:
-        print("娌℃湁鎵惧埌鍙В鏋愮殑 vless:// 鑺傜偣銆?)
+        print("VLESS scanner running...")
         sys.exit(1)
 
     # 鍏堝仛 HTTPS/SNI
     print()
-    print("[1/3] HTTPS + SNI 鎵归噺楠岃瘉")
+    print("HTTPS / SNI test...")
     print(f"鍩熷悕: {DOMAIN}")
     print(f"骞跺彂: {WORKERS}")
     print()
@@ -385,7 +385,7 @@ def main():
 
     # GeoIP
     print()
-    print("[2/3] GeoIP 鍦板尯璇嗗埆")
+    print("GeoIP lookup...")
 
     ips = list(dict.fromkeys(r["ip"] for r in results))
     geo = geoip_batch(ips)
@@ -467,7 +467,7 @@ def main():
     summary.append("=" * 60)
     summary.append(f"杈撳叆鑺傜偣: {len(results)}")
     summary.append(f"HTTPS鍙敤: {len(usable)}")
-    summary.append(f"鏈€缁堜繚鐣? {len(selected)}")
+    summary.append(f"Final selected nodes: {len(selected)}")
     summary.append("")
 
     summary.append("鍦板尯缁熻")
@@ -479,7 +479,7 @@ def main():
         )
 
     summary.append("")
-    summary.append("鏈€缁堣妭鐐?)
+    summary.append("Final nodes")
     summary.append("-" * 60)
 
     for i, r in enumerate(selected, 1):
@@ -500,8 +500,8 @@ def main():
     print("[3/3] 瀹屾垚")
     print()
     print("=" * 72)
-    print(f"HTTPS 鍙敤: {len(usable)} / {len(results)}")
-    print(f"鏈€缁堜繚鐣?   {len(selected)}")
+    print("HTTPS / SNI test...")
+    summary.append(f"Final selected nodes: {len(selected)}")
     print("=" * 72)
 
     print()
@@ -518,7 +518,7 @@ def main():
         )
 
     print()
-    print("杈撳嚭鏂囦欢锛?)
+    print("Output files:")
     print("  results.csv")
     print("  usable_nodes.txt")
     print("  usable_subscription.txt")
@@ -534,5 +534,6 @@ def shutil_which(name):
 
 if __name__ == "__main__":
     main()
+
 
 
