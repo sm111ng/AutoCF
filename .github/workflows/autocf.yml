@@ -1,0 +1,241 @@
+name: AutoCF Automatic IP Selector
+
+on:
+  workflow_dispatch:
+  schedule:
+    # ?????? 01:00 = UTC ??? 17:00
+    - cron: "0 17 * * *"
+
+permissions:
+  contents: write
+
+jobs:
+  autocf:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Download Xray
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          Write-Host "Downloading latest Xray..."
+
+          $api = Invoke-RestMethod `
+            -Uri "https://api.github.com/repos/XTLS/Xray-core/releases/latest" `
+            -Headers @{
+              "User-Agent" = "AutoCF"
+            }
+
+          $asset = $api.assets |
+            Where-Object { $_.name -eq "Xray-windows-64.zip" } |
+            Select-Object -First 1
+
+          if (!$asset) {
+            throw "??? Xray-windows-64.zip"
+          }
+
+          Write-Host "Xray version: $($api.tag_name)"
+          Write-Host "Download: $($asset.browser_download_url)"
+
+          Invoke-WebRequest `
+            -Uri $asset.browser_download_url `
+            -OutFile "$PWD\xray.zip"
+
+          Expand-Archive `
+            -Path "$PWD\xray.zip" `
+            -DestinationPath "$PWD\xray_tmp" `
+            -Force
+
+          $xray = Get-ChildItem `
+            -Path "$PWD\xray_tmp" `
+            -Filter "xray.exe" `
+            -Recurse |
+            Select-Object -First 1
+
+          if (!$xray) {
+            throw "Xray ???????? xray.exe"
+          }
+
+          Copy-Item $xray.FullName "$PWD\xray.exe" -Force
+
+          & "$PWD\xray.exe" version
+
+      - name: Download subscription
+        shell: powershell
+        env:
+          SUBSCRIPTION_URL: ${{ secrets.SUBSCRIPTION_URL }}
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          if ([string]::IsNullOrWhiteSpace($env:SUBSCRIPTION_URL)) {
+            throw "GitHub Secret SUBSCRIPTION_URL ????"
+          }
+
+          Write-Host "Downloading subscription..."
+
+          Invoke-WebRequest `
+            -Uri $env:SUBSCRIPTION_URL `
+            -OutFile "$PWD\subscription_raw.txt" `
+            -UseBasicParsing
+
+          $raw = Get-Content `
+            "$PWD\subscription_raw.txt" `
+            -Raw
+
+          # ?????????? VLESS
+          if ($raw -match "vless://") {
+            $raw | Set-Content `
+              "$PWD\decoded_sub.txt" `
+              -Encoding UTF8
+          }
+          else {
+            # ?? Base64 ??
+            $clean = ($raw -replace "\s", "")
+
+            try {
+              $bytes = [Convert]::FromBase64String($clean)
+              $decoded = [Text.Encoding]::UTF8.GetString($bytes)
+
+              if ($decoded -notmatch "vless://") {
+                throw "Base64 ??????? vless://"
+              }
+
+              $decoded | Set-Content `
+                "$PWD\decoded_sub.txt" `
+                -Encoding UTF8
+            }
+            catch {
+              throw "??????? VLESS / Base64 VLESS"
+            }
+          }
+
+          $count = (
+            Get-Content "$PWD\decoded_sub.txt" |
+            Where-Object { $_ -match "^vless://" }
+          ).Count
+
+          Write-Host "?? VLESS ??: $count"
+
+          if ($count -eq 0) {
+            throw "??????? VLESS ??"
+          }
+
+      - name: Run AutoCF scanner
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          Write-Host ""
+          Write-Host "=============================================="
+          Write-Host "[1/3] HTTPS / SNI / GeoIP"
+          Write-Host "=============================================="
+
+          python .\scanner_v4.py
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "scanner_v4.py ????"
+          }
+
+      - name: Run real VLESS test
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          Write-Host ""
+          Write-Host "=============================================="
+          Write-Host "[2/3] REAL VLESS TEST"
+          Write-Host "=============================================="
+
+          python .\vless_real_test.py
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "vless_real_test.py ????"
+          }
+
+      - name: Generate final subscription
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          Write-Host ""
+          Write-Host "=============================================="
+          Write-Host "[3/3] FINALIZE"
+          Write-Host "=============================================="
+
+          python .\finalize_results.py
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "finalize_results.py ????"
+          }
+
+      - name: Prepare public output
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          New-Item `
+            -ItemType Directory `
+            -Force `
+            ".\public" |
+            Out-Null
+
+          if (Test-Path ".\output\FINAL_subscription.txt") {
+            Copy-Item `
+              ".\output\FINAL_subscription.txt" `
+              ".\public\subscription.txt" `
+              -Force
+          }
+
+          if (Test-Path ".\output\FINAL_nodes.txt") {
+            Copy-Item `
+              ".\output\FINAL_nodes.txt" `
+              ".\public\nodes.txt" `
+              -Force
+          }
+
+          if (Test-Path ".\output\FINAL_summary.txt") {
+            Copy-Item `
+              ".\output\FINAL_summary.txt" `
+              ".\public\summary.txt" `
+              -Force
+          }
+
+          if (Test-Path ".\output\regions") {
+            Copy-Item `
+              ".\output\regions" `
+              ".\public\regions" `
+              -Recurse `
+              -Force
+          }
+
+          Write-Host ""
+          Write-Host "Public output prepared."
+
+      - name: Commit generated public output
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add public
+
+          $changes = git status --porcelain
+
+          if ($changes) {
+            git commit -m "AutoCF: update optimized nodes"
+            git push
+          }
+          else {
+            Write-Host "No public output changes."
+          }
