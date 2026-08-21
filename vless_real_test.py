@@ -1,3 +1,11 @@
+﻿# --- UTF-8 stdout/stderr fix for GitHub Actions / Windows ---
+import sys
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    pass
+# --- END UTF-8 FIX ---
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
@@ -5,25 +13,19 @@
 AutoCF VLESS Real Tester
 ========================
 
-用途：
-1. 读取 decoded_sub.txt / usable_nodes.txt 中的 VLESS
-2. 调用本机 xray.exe 建立真实 VLESS -> SOCKS5
-3. 通过 SOCKS5 实际访问 Cloudflare trace
-4. 获取真实代理出口 IP
-5. 查询出口 IP 国家/城市
-6. 测试实际代理延迟
-7. 可选做多轮稳定性测试
-8. 输出：
-   real_results.csv
+鐢ㄩ€旓細
+1. 璇诲彇 decoded_sub.txt / usable_nodes.txt 涓殑 VLESS
+2. 璋冪敤鏈満 xray.exe 寤虹珛鐪熷疄 VLESS -> SOCKS5
+3. 閫氳繃 SOCKS5 瀹為檯璁块棶 Cloudflare trace
+4. 鑾峰彇鐪熷疄浠ｇ悊鍑哄彛 IP
+5. 鏌ヨ鍑哄彛 IP 鍥藉/鍩庡競
+6. 娴嬭瘯瀹為檯浠ｇ悊寤惰繜
+7. 鍙€夊仛澶氳疆绋冲畾鎬ф祴璇?8. 杈撳嚭锛?   real_results.csv
    real_usable_nodes.txt
    real_usable_subscription.txt
    real_summary.txt
 
-注意：
-- 这一步与 scanner_v4.py 不同：它测试的是“真正通过 VLESS 代理上网”。
-- 本程序不会修改 Windows 系统代理。
-- 需要 xray.exe 放在 I:\\AutoCF\\xray.exe，或加入 PATH。
-"""
+娉ㄦ剰锛?- 杩欎竴姝ヤ笌 scanner_v4.py 涓嶅悓锛氬畠娴嬭瘯鐨勬槸鈥滅湡姝ｉ€氳繃 VLESS 浠ｇ悊涓婄綉鈥濄€?- 鏈▼搴忎笉浼氫慨鏀?Windows 绯荤粺浠ｇ悊銆?- 闇€瑕?xray.exe 鏀惧湪 I:\\AutoCF\\xray.exe锛屾垨鍔犲叆 PATH銆?"""
 
 import base64
 import csv
@@ -42,7 +44,7 @@ from urllib.request import Request, urlopen
 
 BASE = Path(__file__).resolve().parent
 
-# 优先使用 V4 筛选后的节点；没有则使用 decoded_sub.txt
+# 浼樺厛浣跨敤 V4 绛涢€夊悗鐨勮妭鐐癸紱娌℃湁鍒欎娇鐢?decoded_sub.txt
 INPUT_FILES = [
     BASE / "usable_nodes.txt",
     BASE / "decoded_sub.txt",
@@ -55,26 +57,23 @@ IPINFO_URL = "http://ip-api.com/json/{ip}?fields=status,country,countryCode,regi
 
 LOCAL_SOCKS_START = 21000
 
-# 每个节点最长等待
-START_TIMEOUT = 12
+# 姣忎釜鑺傜偣鏈€闀跨瓑寰?START_TIMEOUT = 12
 REQUEST_TIMEOUT = 15
 
-# 稳定性测试次数
-STABILITY_ROUNDS = 3
+# 绋冲畾鎬ф祴璇曟鏁?STABILITY_ROUNDS = 3
 
-# 通过标准
+# 閫氳繃鏍囧噯
 MIN_SUCCESS_RATE = 0.66
 MAX_EXIT_LATENCY_MS = 5000
 
-# 为了避免同一时间启动太多 xray，默认逐个测试
-# 20 个节点并不算多，逐个更稳。
-COUNTRY_MAP = {
-    "JP": "日本", "US": "美国", "HK": "香港", "SG": "新加坡",
-    "KR": "韩国", "TW": "台湾", "CN": "中国", "GB": "英国",
-    "DE": "德国", "NL": "荷兰", "FR": "法国", "CA": "加拿大",
-    "AU": "澳大利亚", "IN": "印度", "RU": "俄罗斯", "TR": "土耳其",
-    "SE": "瑞典", "FI": "芬兰", "PL": "波兰", "IT": "意大利",
-    "ES": "西班牙", "AE": "阿联酋",
+# 涓轰簡閬垮厤鍚屼竴鏃堕棿鍚姩澶 xray锛岄粯璁ら€愪釜娴嬭瘯
+# 20 涓妭鐐瑰苟涓嶇畻澶氾紝閫愪釜鏇寸ǔ銆?COUNTRY_MAP = {
+    "JP": "鏃ユ湰", "US": "缇庡浗", "HK": "棣欐腐", "SG": "鏂板姞鍧?,
+    "KR": "闊╁浗", "TW": "鍙版咕", "CN": "涓浗", "GB": "鑻卞浗",
+    "DE": "寰峰浗", "NL": "鑽峰叞", "FR": "娉曞浗", "CA": "鍔犳嬁澶?,
+    "AU": "婢冲ぇ鍒╀簹", "IN": "鍗板害", "RU": "淇勭綏鏂?, "TR": "鍦熻€冲叾",
+    "SE": "鐟炲吀", "FI": "鑺叞", "PL": "娉㈠叞", "IT": "鎰忓ぇ鍒?,
+    "ES": "瑗跨彮鐗?, "AE": "闃胯仈閰?,
 }
 
 def log(s=""):
@@ -85,7 +84,7 @@ def find_input():
         if p.exists() and p.stat().st_size > 0:
             return p
     raise FileNotFoundError(
-        "找不到 usable_nodes.txt 或 decoded_sub.txt。"
+        "鎵句笉鍒?usable_nodes.txt 鎴?decoded_sub.txt銆?
     )
 
 def find_xray():
@@ -95,8 +94,8 @@ def find_xray():
     if found:
         return found
     raise FileNotFoundError(
-        "找不到 xray.exe。请把 xray.exe 放到 I:\\AutoCF\\xray.exe，"
-        "或把 Xray 加入 PATH。"
+        "鎵句笉鍒?xray.exe銆傝鎶?xray.exe 鏀惧埌 I:\\AutoCF\\xray.exe锛?
+        "鎴栨妸 Xray 鍔犲叆 PATH銆?
     )
 
 def load_vless(path):
@@ -104,7 +103,7 @@ def load_vless(path):
     seen = set()
 
     text = path.read_text(encoding="utf-8", errors="ignore")
-    # 同时支持普通 VLESS 文本和 Base64 订阅
+    # 鍚屾椂鏀寔鏅€?VLESS 鏂囨湰鍜?Base64 璁㈤槄
     if "vless://" not in text:
         try:
             decoded = base64.b64decode(
@@ -136,14 +135,14 @@ def parse_vless(uri):
     u = urlparse(uri)
 
     if u.scheme.lower() != "vless":
-        raise ValueError("不是 VLESS URI")
+        raise ValueError("涓嶆槸 VLESS URI")
 
     uuid = unquote(u.username or "")
     host = u.hostname
     port = u.port
 
     if not uuid or not host or not port:
-        raise ValueError("VLESS URI 缺少 UUID / host / port")
+        raise ValueError("VLESS URI 缂哄皯 UUID / host / port")
 
     q = parse_qs(u.query, keep_blank_values=True)
 
@@ -174,10 +173,7 @@ def parse_vless(uri):
     }
 
 def make_xray_config(v, socks_port):
-    # 针对当前订阅的 TLS + WebSocket VLESS。
-    # ECH 参数如果存在但无法直接转换为 Xray 的标准 ECH 配置，
-    # 这里先不注入，先验证基础 VLESS 是否可用。
-    stream = {
+    # 閽堝褰撳墠璁㈤槄鐨?TLS + WebSocket VLESS銆?    # ECH 鍙傛暟濡傛灉瀛樺湪浣嗘棤娉曠洿鎺ヨ浆鎹负 Xray 鐨勬爣鍑?ECH 閰嶇疆锛?    # 杩欓噷鍏堜笉娉ㄥ叆锛屽厛楠岃瘉鍩虹 VLESS 鏄惁鍙敤銆?    stream = {
         "network": v["type"],
     }
 
@@ -308,7 +304,7 @@ def curl_via_socks(port):
             "exit_ip": ip,
             "latency_ms": elapsed,
             "raw": text[:1000],
-            "error": "" if ok else ((p.stderr or "").strip()[:300] or "代理请求失败"),
+            "error": "" if ok else ((p.stderr or "").strip()[:300] or "浠ｇ悊璇锋眰澶辫触"),
         }
 
     except subprocess.TimeoutExpired:
@@ -364,7 +360,7 @@ def test_one(uri, xray, socks_port):
                     "city": "",
                     "latency_ms": 0,
                     "success_rate": 0,
-                    "error": "XRAY 启动失败或 SOCKS 端口未监听",
+                    "error": "XRAY 鍚姩澶辫触鎴?SOCKS 绔彛鏈洃鍚?,
                 }
 
             rounds = []
@@ -388,7 +384,7 @@ def test_one(uri, xray, socks_port):
                     "city": "",
                     "latency_ms": max((x["latency_ms"] for x in rounds), default=0),
                     "success_rate": success_rate,
-                    "error": rounds[-1]["error"] if rounds else "无结果",
+                    "error": rounds[-1]["error"] if rounds else "鏃犵粨鏋?,
                 }
 
             best = min(success, key=lambda x: x["latency_ms"])
@@ -414,7 +410,7 @@ def test_one(uri, xray, socks_port):
                 "org": g.get("org", ""),
                 "latency_ms": best["latency_ms"],
                 "success_rate": success_rate,
-                "error": "" if ok else "稳定性/延迟未达标",
+                "error": "" if ok else "绋冲畾鎬?寤惰繜鏈揪鏍?,
             }
 
         finally:
@@ -461,29 +457,29 @@ def main():
     print("=" * 72)
     print("AutoCF VLESS REAL TEST")
     print("=" * 72)
-    print("这一阶段测试的是：真实 VLESS 代理，而不是单纯 IP/TLS 可达性。")
+    print("杩欎竴闃舵娴嬭瘯鐨勬槸锛氱湡瀹?VLESS 浠ｇ悊锛岃€屼笉鏄崟绾?IP/TLS 鍙揪鎬с€?)
     print()
 
     try:
         xray = find_xray()
     except FileNotFoundError as e:
-        print(f"错误：{e}")
+        print(f"閿欒锛歿e}")
         print()
-        print("把 xray.exe 放到：")
+        print("鎶?xray.exe 鏀惧埌锛?)
         print(str(XRAY))
         sys.exit(1)
 
     input_file = find_input()
     uris = load_vless(input_file)
 
-    print(f"输入文件: {input_file.name}")
-    print(f"发现 VLESS: {len(uris)}")
+    print(f"杈撳叆鏂囦欢: {input_file.name}")
+    print(f"鍙戠幇 VLESS: {len(uris)}")
     print(f"Xray: {xray}")
-    print(f"稳定性测试: {STABILITY_ROUNDS} 轮")
+    print(f"绋冲畾鎬ф祴璇? {STABILITY_ROUNDS} 杞?)
     print()
 
     if not uris:
-        print("没有发现 VLESS 节点。")
+        print("娌℃湁鍙戠幇 VLESS 鑺傜偣銆?)
         sys.exit(1)
 
     rows = []
@@ -498,7 +494,7 @@ def main():
                 flush=True
             )
 
-            # 防止旧进程占用，寻找可用本地端口
+            # 闃叉鏃ц繘绋嬪崰鐢紝瀵绘壘鍙敤鏈湴绔彛
             socks_port = LOCAL_SOCKS_START + i
             result = test_one(uri, xray, socks_port)
             result["score"] = score(result)
@@ -507,10 +503,10 @@ def main():
 
             if result["ok"]:
                 print(
-                    f"OK  出口={result['exit_ip']} "
+                    f"OK  鍑哄彛={result['exit_ip']} "
                     f"{result['region']} "
                     f"{result['latency_ms']}ms "
-                    f"稳定={result['success_rate']:.0%}"
+                    f"绋冲畾={result['success_rate']:.0%}"
                 )
             else:
                 print(
@@ -560,8 +556,7 @@ def main():
 
     usable = [r for r in rows if r["ok"]]
 
-    # 每个真实出口地区最多 3 个
-    region_count = {}
+    # 姣忎釜鐪熷疄鍑哄彛鍦板尯鏈€澶?3 涓?    region_count = {}
     selected = []
 
     for r in usable:
@@ -571,14 +566,12 @@ def main():
         region_count[region] = region_count.get(region, 0) + 1
         selected.append(r)
 
-    # 用真实出口地区命名
-    out_lines = []
+    # 鐢ㄧ湡瀹炲嚭鍙ｅ湴鍖哄懡鍚?    out_lines = []
     for r in selected:
         region = r["region"] or "??"
         num = region_count[region]
-        # 这里重新按出现顺序编号
-        count = sum(1 for x in selected if x["region"] == region)
-        # 后面用单独计数器覆盖
+        # 杩欓噷閲嶆柊鎸夊嚭鐜伴『搴忕紪鍙?        count = sum(1 for x in selected if x["region"] == region)
+        # 鍚庨潰鐢ㄥ崟鐙鏁板櫒瑕嗙洊
     counters = {}
     for r in selected:
         region = r["region"] or "??"
@@ -602,11 +595,11 @@ def main():
     summary = []
     summary.append("AutoCF VLESS REAL TEST")
     summary.append("=" * 72)
-    summary.append(f"输入节点: {len(uris)}")
-    summary.append(f"真实 VLESS 可用: {len(usable)}")
-    summary.append(f"最终保留: {len(selected)}")
+    summary.append(f"杈撳叆鑺傜偣: {len(uris)}")
+    summary.append(f"鐪熷疄 VLESS 鍙敤: {len(usable)}")
+    summary.append(f"鏈€缁堜繚鐣? {len(selected)}")
     summary.append("")
-    summary.append("真实出口地区统计")
+    summary.append("鐪熷疄鍑哄彛鍦板尯缁熻")
     summary.append("-" * 72)
 
     for region in sorted(region_count):
@@ -616,16 +609,16 @@ def main():
         )
 
     summary.append("")
-    summary.append("最终节点")
+    summary.append("鏈€缁堣妭鐐?)
     summary.append("-" * 72)
 
     for i, r in enumerate(selected, 1):
         summary.append(
             f"{i:02d}. {r['name']:6} "
-            f"入口={r['ip']}:{r['port']} "
-            f"出口={r['exit_ip']} "
+            f"鍏ュ彛={r['ip']}:{r['port']} "
+            f"鍑哄彛={r['exit_ip']} "
             f"{r['latency_ms']}ms "
-            f"稳定={r['success_rate']:.0%} "
+            f"绋冲畾={r['success_rate']:.0%} "
             f"Score={r['score']}"
         )
 
@@ -636,11 +629,11 @@ def main():
 
     print()
     print("=" * 72)
-    print(f"真实 VLESS 可用: {len(usable)} / {len(rows)}")
-    print(f"最终保留:        {len(selected)}")
+    print(f"鐪熷疄 VLESS 鍙敤: {len(usable)} / {len(rows)}")
+    print(f"鏈€缁堜繚鐣?        {len(selected)}")
     print("=" * 72)
     print()
-    print(f"{'NAME':7} {'入口IP':18} {'出口IP':16} {'REGION':7} {'LATENCY':9} {'STABLE':8} {'SCORE':6}")
+    print(f"{'NAME':7} {'鍏ュ彛IP':18} {'鍑哄彛IP':16} {'REGION':7} {'LATENCY':9} {'STABLE':8} {'SCORE':6}")
     print("-" * 88)
 
     for r in selected:
@@ -655,7 +648,7 @@ def main():
         )
 
     print()
-    print("输出文件：")
+    print("杈撳嚭鏂囦欢锛?)
     print("  real_results.csv")
     print("  real_usable_nodes.txt")
     print("  real_usable_subscription.txt")
@@ -663,3 +656,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

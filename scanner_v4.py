@@ -1,26 +1,27 @@
+﻿# --- UTF-8 stdout/stderr fix for GitHub Actions / Windows ---
+import sys
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    pass
+# --- END UTF-8 FIX ---
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 """
 AutoCF scanner_v4.py
 
-用途：
-1. 从 decoded_sub.txt 读取 VLESS 节点
-2. 提取 IP / Port / 原始 VLESS
-3. 使用真实域名 + SNI + --resolve 做 HTTPS 验证
-4. 查询 IP 地理位置，给节点标记 JP / US / HK / SG / ...
-5. 按延迟和可用性排序
-6. 输出：
-   results.csv
+鐢ㄩ€旓細
+1. 浠?decoded_sub.txt 璇诲彇 VLESS 鑺傜偣
+2. 鎻愬彇 IP / Port / 鍘熷 VLESS
+3. 浣跨敤鐪熷疄鍩熷悕 + SNI + --resolve 鍋?HTTPS 楠岃瘉
+4. 鏌ヨ IP 鍦扮悊浣嶇疆锛岀粰鑺傜偣鏍囪 JP / US / HK / SG / ...
+5. 鎸夊欢杩熷拰鍙敤鎬ф帓搴?6. 杈撳嚭锛?   results.csv
    usable_nodes.txt
-   usable_subscription.txt   （Base64 VLESS 订阅）
-   summary.txt
+   usable_subscription.txt   锛圔ase64 VLESS 璁㈤槄锛?   summary.txt
 
-说明：
-- HTTPS=OK 代表该 IP:Port 能在指定 SNI 下成功到达 Cloudflare。
-- 这不是 100% 等同于“VLESS 已经能代理上网”。
-- 如果机器安装了 xray.exe，可在后续版本增加真正的 VLESS 代理实测。
-"""
+璇存槑锛?- HTTPS=OK 浠ｈ〃璇?IP:Port 鑳藉湪鎸囧畾 SNI 涓嬫垚鍔熷埌杈?Cloudflare銆?- 杩欎笉鏄?100% 绛夊悓浜庘€淰LESS 宸茬粡鑳戒唬鐞嗕笂缃戔€濄€?- 濡傛灉鏈哄櫒瀹夎浜?xray.exe锛屽彲鍦ㄥ悗缁増鏈鍔犵湡姝ｇ殑 VLESS 浠ｇ悊瀹炴祴銆?"""
 
 import base64
 import csv
@@ -35,58 +36,56 @@ from pathlib import Path
 from urllib.request import Request, urlopen
 
 # =========================
-# 配置
+# 閰嶇疆
 # =========================
 
 SUB_FILE = Path("decoded_sub.txt")
 DOMAIN = "diaoyong.smil1ng.dpdns.org"
 
-# 每个地区最多保留多少个节点；0 = 不限制
-TOP_PER_REGION = 3
+# 姣忎釜鍦板尯鏈€澶氫繚鐣欏灏戜釜鑺傜偣锛? = 涓嶉檺鍒?TOP_PER_REGION = 3
 
-# 并发数
-WORKERS = 12
+# 骞跺彂鏁?WORKERS = 12
 
-# curl 超时
+# curl 瓒呮椂
 CONNECT_TIMEOUT = 8
 MAX_TIME = 12
 
-# 只有 HTTP 成功才算 HTTPS_OK
+# 鍙湁 HTTP 鎴愬姛鎵嶇畻 HTTPS_OK
 ACCEPT_HTTP = {200, 204, 301, 302, 400, 403, 404}
 
-# 是否只保留 Cloudflare
+# 鏄惁鍙繚鐣?Cloudflare
 REQUIRE_CLOUDFLARE = True
 
 # =========================
-# 地区名称
+# 鍦板尯鍚嶇О
 # =========================
 
 COUNTRY_MAP = {
-    "JP": "日本",
-    "US": "美国",
-    "HK": "香港",
-    "SG": "新加坡",
-    "KR": "韩国",
-    "TW": "台湾",
-    "CN": "中国",
-    "GB": "英国",
-    "DE": "德国",
-    "NL": "荷兰",
-    "FR": "法国",
-    "CA": "加拿大",
-    "AU": "澳大利亚",
-    "IN": "印度",
-    "RU": "俄罗斯",
-    "TR": "土耳其",
-    "SE": "瑞典",
-    "FI": "芬兰",
-    "PL": "波兰",
-    "IT": "意大利",
-    "ES": "西班牙",
+    "JP": "鏃ユ湰",
+    "US": "缇庡浗",
+    "HK": "棣欐腐",
+    "SG": "鏂板姞鍧?,
+    "KR": "闊╁浗",
+    "TW": "鍙版咕",
+    "CN": "涓浗",
+    "GB": "鑻卞浗",
+    "DE": "寰峰浗",
+    "NL": "鑽峰叞",
+    "FR": "娉曞浗",
+    "CA": "鍔犳嬁澶?,
+    "AU": "婢冲ぇ鍒╀簹",
+    "IN": "鍗板害",
+    "RU": "淇勭綏鏂?,
+    "TR": "鍦熻€冲叾",
+    "SE": "鐟炲吀",
+    "FI": "鑺叞",
+    "PL": "娉㈠叞",
+    "IT": "鎰忓ぇ鍒?,
+    "ES": "瑗跨彮鐗?,
 }
 
 # =========================
-# 工具
+# 宸ュ叿
 # =========================
 
 def log(msg):
@@ -97,7 +96,7 @@ def parse_vless_file(path):
     nodes = []
 
     if not path.exists():
-        raise FileNotFoundError(f"找不到 {path.resolve()}")
+        raise FileNotFoundError(f"鎵句笉鍒?{path.resolve()}")
 
     for line in path.read_text(encoding="utf-8", errors="ignore").splitlines():
         line = line.strip()
@@ -111,7 +110,7 @@ def parse_vless_file(path):
         ip = m.group(1)
         port = int(m.group(2))
 
-        # 去重，但保留第一次出现的完整 VLESS
+        # 鍘婚噸锛屼絾淇濈暀绗竴娆″嚭鐜扮殑瀹屾暣 VLESS
         key = (ip, port)
         if any((x["ip"], x["port"]) == key for x in nodes):
             continue
@@ -127,13 +126,11 @@ def parse_vless_file(path):
 
 def curl_https_test(ip, port):
     """
-    使用 curl：
-      --noproxy "*"
+    浣跨敤 curl锛?      --noproxy "*"
       --resolve DOMAIN:PORT:IP
       https://DOMAIN:PORT/
 
-    这样测试不会受到 Windows 当前代理设置影响。
-    """
+    杩欐牱娴嬭瘯涓嶄細鍙楀埌 Windows 褰撳墠浠ｇ悊璁剧疆褰卞搷銆?    """
 
     url = f"https://{DOMAIN}:{port}/"
     resolve = f"{DOMAIN}:{port}:{ip}"
@@ -182,7 +179,7 @@ def curl_https_test(ip, port):
             "server": server,
             "cloudflare": cf_ok,
             "latency_ms": elapsed,
-            "error": "" if ok else "HTTPS验证失败",
+            "error": "" if ok else "HTTPS楠岃瘉澶辫触",
         }
 
     except subprocess.TimeoutExpired:
@@ -207,16 +204,14 @@ def curl_https_test(ip, port):
 
 def geoip_batch(ips):
     """
-    ip-api.com 批量查询，最多一次 100 个 IP。
-    返回：
-      countryCode / country / city / regionName / org / as
+    ip-api.com 鎵归噺鏌ヨ锛屾渶澶氫竴娆?100 涓?IP銆?    杩斿洖锛?      countryCode / country / city / regionName / org / as
     """
     if not ips:
         return {}
 
     result = {}
 
-    # ip-api batch 单次最多 100
+    # ip-api batch 鍗曟鏈€澶?100
     for start in range(0, len(ips), 100):
         batch = ips[start:start + 100]
 
@@ -259,7 +254,7 @@ def geoip_batch(ips):
                     }
 
         except Exception as e:
-            log(f"[GeoIP] 批量查询失败: {e}")
+            log(f"[GeoIP] 鎵归噺鏌ヨ澶辫触: {e}")
 
     return result
 
@@ -270,9 +265,7 @@ def region_name(code):
 
 def make_vless(line, ip, port, region_code):
     """
-    只替换 endpoint IP:Port。
-    保留 UUID、TLS、WS、SNI、path、host 等全部原参数。
-    同时把节点名称改成：
+    鍙浛鎹?endpoint IP:Port銆?    淇濈暀 UUID銆乀LS銆乄S銆丼NI銆乸ath銆乭ost 绛夊叏閮ㄥ師鍙傛暟銆?    鍚屾椂鎶婅妭鐐瑰悕绉版敼鎴愶細
       JP-01
       US-02
     """
@@ -283,7 +276,7 @@ def make_vless(line, ip, port, region_code):
         count=1,
     )
 
-    # 去掉旧 fragment
+    # 鍘绘帀鏃?fragment
     if "#" in new_line:
         new_line = new_line.split("#", 1)[0]
 
@@ -292,9 +285,7 @@ def make_vless(line, ip, port, region_code):
 
 def score(row):
     """
-    当前评分只用于排序，不代表真实代理质量。
-    HTTPS OK 是硬门槛。
-    """
+    褰撳墠璇勫垎鍙敤浜庢帓搴忥紝涓嶄唬琛ㄧ湡瀹炰唬鐞嗚川閲忋€?    HTTPS OK 鏄‖闂ㄦ銆?    """
     if not row["https_ok"]:
         return 0
 
@@ -343,23 +334,23 @@ def main():
     print("=" * 72)
 
     if not shutil_which("curl.exe"):
-        print("错误：找不到 curl.exe")
-        print("Windows 10/11 通常自带 curl.exe。")
+        print("閿欒锛氭壘涓嶅埌 curl.exe")
+        print("Windows 10/11 閫氬父鑷甫 curl.exe銆?)
         sys.exit(1)
 
     nodes = parse_vless_file(SUB_FILE)
 
-    print(f"发现 VLESS 节点: {len(nodes)}")
+    print(f"鍙戠幇 VLESS 鑺傜偣: {len(nodes)}")
 
     if not nodes:
-        print("没有找到可解析的 vless:// 节点。")
+        print("娌℃湁鎵惧埌鍙В鏋愮殑 vless:// 鑺傜偣銆?)
         sys.exit(1)
 
-    # 先做 HTTPS/SNI
+    # 鍏堝仛 HTTPS/SNI
     print()
-    print("[1/3] HTTPS + SNI 批量验证")
-    print(f"域名: {DOMAIN}")
-    print(f"并发: {WORKERS}")
+    print("[1/3] HTTPS + SNI 鎵归噺楠岃瘉")
+    print(f"鍩熷悕: {DOMAIN}")
+    print(f"骞跺彂: {WORKERS}")
     print()
 
     results = []
@@ -394,7 +385,7 @@ def main():
 
     # GeoIP
     print()
-    print("[2/3] GeoIP 地区识别")
+    print("[2/3] GeoIP 鍦板尯璇嗗埆")
 
     ips = list(dict.fromkeys(r["ip"] for r in results))
     geo = geoip_batch(ips)
@@ -411,7 +402,7 @@ def main():
         r["as"] = g.get("as", "")
         r["score"] = score(r)
 
-    # 排序
+    # 鎺掑簭
     results.sort(
         key=lambda r: (
             not r["https_ok"],
@@ -422,10 +413,10 @@ def main():
 
     write_csv(results)
 
-    # 只保留 HTTPS 可用
+    # 鍙繚鐣?HTTPS 鍙敤
     usable = [r for r in results if r["https_ok"]]
 
-    # 每个地区 Top N
+    # 姣忎釜鍦板尯 Top N
     selected = []
     region_counts = {}
 
@@ -443,7 +434,7 @@ def main():
 
     selected.sort(key=lambda r: (-r["score"], r["latency_ms"]))
 
-    # 节点文本
+    # 鑺傜偣鏂囨湰
     vless_lines = []
 
     for r in selected:
@@ -470,16 +461,16 @@ def main():
         encoding="ascii"
     )
 
-    # 摘要
+    # 鎽樿
     summary = []
     summary.append("AutoCF Scanner V4 Result")
     summary.append("=" * 60)
-    summary.append(f"输入节点: {len(results)}")
-    summary.append(f"HTTPS可用: {len(usable)}")
-    summary.append(f"最终保留: {len(selected)}")
+    summary.append(f"杈撳叆鑺傜偣: {len(results)}")
+    summary.append(f"HTTPS鍙敤: {len(usable)}")
+    summary.append(f"鏈€缁堜繚鐣? {len(selected)}")
     summary.append("")
 
-    summary.append("地区统计")
+    summary.append("鍦板尯缁熻")
     summary.append("-" * 60)
 
     for region, count in sorted(region_counts.items()):
@@ -488,7 +479,7 @@ def main():
         )
 
     summary.append("")
-    summary.append("最终节点")
+    summary.append("鏈€缁堣妭鐐?)
     summary.append("-" * 60)
 
     for i, r in enumerate(selected, 1):
@@ -505,13 +496,12 @@ def main():
         encoding="utf-8"
     )
 
-    # 控制台输出
-    print()
-    print("[3/3] 完成")
+    # 鎺у埗鍙拌緭鍑?    print()
+    print("[3/3] 瀹屾垚")
     print()
     print("=" * 72)
-    print(f"HTTPS 可用: {len(usable)} / {len(results)}")
-    print(f"最终保留:   {len(selected)}")
+    print(f"HTTPS 鍙敤: {len(usable)} / {len(results)}")
+    print(f"鏈€缁堜繚鐣?   {len(selected)}")
     print("=" * 72)
 
     print()
@@ -528,7 +518,7 @@ def main():
         )
 
     print()
-    print("输出文件：")
+    print("杈撳嚭鏂囦欢锛?)
     print("  results.csv")
     print("  usable_nodes.txt")
     print("  usable_subscription.txt")
@@ -537,11 +527,12 @@ def main():
 
 def shutil_which(name):
     """
-    不额外依赖 shutil，兼容直接运行。
-    """
+    涓嶉澶栦緷璧?shutil锛屽吋瀹圭洿鎺ヨ繍琛屻€?    """
     import shutil
     return shutil.which(name)
 
 
 if __name__ == "__main__":
     main()
+
+
