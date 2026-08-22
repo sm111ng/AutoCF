@@ -182,7 +182,22 @@ jobs:
           }
 
 
+      - name: Stability test
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
 
+          Write-Host ""
+          Write-Host "=============================================="
+          Write-Host "STABILITY TEST"
+          Write-Host "=============================================="
+
+          python -X utf8 .\stability.py
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "stability.py failed"
+          }
+          
       - name: Generate final subscription
         shell: powershell
 
