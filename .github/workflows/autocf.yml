@@ -155,7 +155,7 @@ jobs:
 
           $ErrorActionPreference = "Stop"
 
-          python -X utf8 .\scanner_v4.py
+          python -X utf8 .\scanner.py
 
           if ($LASTEXITCODE -ne 0) {
             throw "scanner failed"
@@ -185,10 +185,10 @@ jobs:
 
           $ErrorActionPreference = "Stop"
 
-          python -X utf8 .\finalize_results.py
+          python -X utf8 .\final_selector.py
 
           if ($LASTEXITCODE -ne 0) {
-            throw "finalizer failed"
+            throw "final_selector.py failed"
           }
 
 
