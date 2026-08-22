@@ -9,14 +9,15 @@ permissions:
   contents: write
 
 env:
-  PYTHONIOENCODING: utf-8
   PYTHONUTF8: "1"
+  PYTHONIOENCODING: utf-8
 
 jobs:
   autocf:
     runs-on: windows-latest
 
     steps:
+
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -24,19 +25,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.13"
-
-      - name: Force UTF-8
-        shell: powershell
-        run: |
-          $ErrorActionPreference = "Stop"
-
-          [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
-          [Console]::InputEncoding = [System.Text.UTF8Encoding]::new()
-
-          $env:PYTHONUTF8 = "1"
-          $env:PYTHONIOENCODING = "utf-8"
-
-          Write-Host "UTF-8 environment configured."
 
       - name: Download Xray
         shell: powershell
@@ -52,14 +40,14 @@ jobs:
             }
 
           $asset = $api.assets |
-            Where-Object { $_.name -eq "Xray-windows-64.zip" } |
+            Where-Object {
+              $_.name -eq "Xray-windows-64.zip"
+            } |
             Select-Object -First 1
 
           if (!$asset) {
-            throw "Xray-windows-64.zip not found"
+            throw "Xray zip not found"
           }
-
-          Write-Host "Xray version: $($api.tag_name)"
 
           Invoke-WebRequest `
             -Uri $asset.browser_download_url `
@@ -77,128 +65,141 @@ jobs:
             Select-Object -First 1
 
           if (!$xray) {
-            throw "xray.exe not found after extraction"
+            throw "xray.exe missing"
           }
 
-          Copy-Item $xray.FullName "$PWD\xray.exe" -Force
+          Copy-Item `
+            $xray.FullName `
+            "$PWD\xray.exe" `
+            -Force
 
           & "$PWD\xray.exe" version
+
 
       - name: Download subscription
         shell: powershell
         env:
           SUBSCRIPTION_URL: ${{ secrets.SUBSCRIPTION_URL }}
+
         run: |
+
           $ErrorActionPreference = "Stop"
 
           if ([string]::IsNullOrWhiteSpace($env:SUBSCRIPTION_URL)) {
-            throw "GitHub Secret SUBSCRIPTION_URL is missing"
+            throw "SUBSCRIPTION_URL missing"
           }
 
-          Write-Host "Downloading subscription..."
 
           Invoke-WebRequest `
             -Uri $env:SUBSCRIPTION_URL `
-            -OutFile "$PWD\subscription_raw.txt" `
-            -UseBasicParsing
+            -OutFile "$PWD\subscription_raw.txt"
+
 
           $raw = Get-Content `
             "$PWD\subscription_raw.txt" `
             -Raw
 
+
           if ($raw -match "vless://") {
 
-            $raw | Set-Content `
+            $raw |
+              Set-Content `
               "$PWD\decoded_sub.txt" `
               -Encoding UTF8
 
           }
+
           else {
 
-            $clean = ($raw -replace "\s", "")
+            $clean = $raw -replace "\s",""
 
-            try {
+            $bytes = [Convert]::FromBase64String($clean)
 
-              $bytes = [Convert]::FromBase64String($clean)
-              $decoded = [Text.Encoding]::UTF8.GetString($bytes)
+            $decoded = `
+              [Text.Encoding]::UTF8.GetString($bytes)
 
-              if ($decoded -notmatch "vless://") {
-                throw "Decoded subscription does not contain vless://"
-              }
 
-              $decoded | Set-Content `
-                "$PWD\decoded_sub.txt" `
-                -Encoding UTF8
-
+            if ($decoded -notmatch "vless://") {
+              throw "Invalid VLESS subscription"
             }
-            catch {
-              throw "Subscription is neither plain VLESS nor Base64 VLESS"
-            }
+
+
+            $decoded |
+              Set-Content `
+              "$PWD\decoded_sub.txt" `
+              -Encoding UTF8
           }
+
 
           $count = (
             Get-Content "$PWD\decoded_sub.txt" |
-            Where-Object { $_ -match "^vless://" }
+            Where-Object {
+              $_ -match "^vless://"
+            }
           ).Count
 
-          Write-Host "VLESS nodes found: $count"
+
+          Write-Host "VLESS nodes: $count"
+
 
           if ($count -eq 0) {
-            throw "No VLESS nodes found"
+            throw "No VLESS nodes"
           }
+
+
 
       - name: Run AutoCF scanner
         shell: powershell
-        run: |
-          $ErrorActionPreference = "Stop"
 
-          Write-Host ""
-          Write-Host "=============================================="
-          Write-Host "[1/3] HTTPS / SNI / GeoIP"
-          Write-Host "=============================================="
+        run: |
+
+          $ErrorActionPreference = "Stop"
 
           python -X utf8 .\scanner_v4.py
 
           if ($LASTEXITCODE -ne 0) {
-            throw "scanner_v4.py failed"
+            throw "scanner failed"
           }
+
+
 
       - name: Run real VLESS test
         shell: powershell
-        run: |
-          $ErrorActionPreference = "Stop"
 
-          Write-Host ""
-          Write-Host "=============================================="
-          Write-Host "[2/3] REAL VLESS TEST"
-          Write-Host "=============================================="
+        run: |
+
+          $ErrorActionPreference = "Stop"
 
           python -X utf8 .\vless_real_test.py
 
           if ($LASTEXITCODE -ne 0) {
-            throw "vless_real_test.py failed"
+            throw "vless test failed"
           }
+
+
 
       - name: Generate final subscription
         shell: powershell
-        run: |
-          $ErrorActionPreference = "Stop"
 
-          Write-Host ""
-          Write-Host "=============================================="
-          Write-Host "[3/3] FINALIZE"
-          Write-Host "=============================================="
+        run: |
+
+          $ErrorActionPreference = "Stop"
 
           python -X utf8 .\finalize_results.py
 
           if ($LASTEXITCODE -ne 0) {
-            throw "finalize_results.py failed"
+            throw "finalizer failed"
           }
+
+
 
       - name: Prepare public output
         shell: powershell
+
         run: |
+
           $ErrorActionPreference = "Stop"
+
 
           New-Item `
             -ItemType Directory `
@@ -206,53 +207,56 @@ jobs:
             ".\public" |
             Out-Null
 
-          if (Test-Path ".\output\FINAL_subscription.txt") {
-            Copy-Item `
-              ".\output\FINAL_subscription.txt" `
-              ".\public\subscription.txt" `
-              -Force
-          }
 
-          if (Test-Path ".\output\FINAL_nodes.txt") {
-            Copy-Item `
-              ".\output\FINAL_nodes.txt" `
-              ".\public\nodes.txt" `
-              -Force
-          }
+          Copy-Item `
+            ".\output\FINAL_subscription.txt" `
+            ".\public\subscription.txt" `
+            -Force
 
-          if (Test-Path ".\output\FINAL_summary.txt") {
-            Copy-Item `
-              ".\output\FINAL_summary.txt" `
-              ".\public\summary.txt" `
-              -Force
-          }
 
-          if (Test-Path ".\output\regions") {
-            Copy-Item `
-              ".\output\regions" `
-              ".\public\regions" `
-              -Recurse `
-              -Force
-          }
+          Copy-Item `
+            ".\output\FINAL_nodes.txt" `
+            ".\public\nodes.txt" `
+            -Force
 
-          Write-Host "Public output prepared."
 
-      - name: Commit generated public output
+          Copy-Item `
+            ".\output\FINAL_summary.txt" `
+            ".\public\summary.txt" `
+            -Force
+
+
+
+      - name: Commit generated output
+
         shell: powershell
+
         run: |
+
           $ErrorActionPreference = "Stop"
 
+
           git config user.name "github-actions[bot]"
+
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
 
           git add public
 
+
           $changes = git status --porcelain
 
+
           if ($changes) {
-            git commit -m "AutoCF: update optimized nodes"
+
+            git commit -m "AutoCF update nodes"
+
             git push
+
           }
+
           else {
-            Write-Host "No public output changes."
+
+            Write-Host "No changes"
+
           }
