@@ -28,7 +28,6 @@ jobs:
         uses: actions/checkout@v4
 
 
-
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
@@ -46,159 +45,138 @@ jobs:
 
 
 
-      - name: Download subscription
+      - name: Download Xray
         shell: powershell
-        env:
-          SUBSCRIPTION_URL: ${{ secrets.SUBSCRIPTION_URL }}
-
         run: |
 
-          $ErrorActionPreference = "Stop"
+          $ErrorActionPreference="Stop"
+
+          Write-Host "Downloading Xray"
 
 
-          if ([string]::IsNullOrWhiteSpace($env:SUBSCRIPTION_URL)) {
+          $release = Invoke-RestMethod `
+          https://api.github.com/repos/XTLS/Xray-core/releases/latest
 
-            throw "SUBSCRIPTION_URL missing"
 
+          $asset = $release.assets |
+          Where-Object {
+            $_.name -eq "Xray-windows-64.zip"
           }
 
 
           Invoke-WebRequest `
-            -Uri $env:SUBSCRIPTION_URL `
-            -OutFile ".\subscription_raw.txt"
+          $asset.browser_download_url `
+          -OutFile xray.zip
+
+
+          Expand-Archive `
+          xray.zip `
+          -DestinationPath xray_tmp `
+          -Force
+
+
+          Copy-Item `
+          (Get-ChildItem xray_tmp -Filter xray.exe -Recurse).FullName `
+          xray.exe
 
 
 
-          $raw = Get-Content `
-            ".\subscription_raw.txt" `
-            -Raw
+      - name: Download subscription
+        shell: powershell
+        env:
+
+          SUBSCRIPTION_URL: ${{ secrets.SUBSCRIPTION_URL }}
+
+        run: |
+
+          $ErrorActionPreference="Stop"
 
 
-
-          if ($raw -match "vless://") {
-
-
-            $raw | Set-Content `
-              ".\decoded_sub.txt" `
-              -Encoding UTF8
+          Invoke-WebRequest `
+          $env:SUBSCRIPTION_URL `
+          -OutFile subscription_raw.txt
 
 
-          }
-          else {
+          $raw = Get-Content subscription_raw.txt -Raw
 
 
-            $clean = $raw -replace "\s",""
+          if($raw -match "vless://"){
 
-
-            $bytes = [Convert]::FromBase64String($clean)
-
-
-            $decoded = [Text.Encoding]::UTF8.GetString($bytes)
-
-
-
-            if ($decoded -notmatch "vless://") {
-
-              throw "Invalid VLESS subscription"
-
-            }
-
-
-            $decoded | Set-Content `
-              ".\decoded_sub.txt" `
-              -Encoding UTF8
+            $raw |
+            Set-Content decoded_sub.txt -Encoding UTF8
 
           }
 
+          else{
+
+            $bytes=[Convert]::FromBase64String(
+            ($raw -replace "\s","")
+            )
 
 
-          $count = (
-
-            Get-Content ".\decoded_sub.txt" |
-
-            Where-Object {
-              $_ -match "^vless://"
-            }
-
-          ).Count
-
-
-
-          Write-Host "VLESS nodes: $count"
-
-
-
-          if ($count -eq 0) {
-
-            throw "No VLESS nodes"
+            [Text.Encoding]::UTF8.GetString($bytes) |
+            Set-Content decoded_sub.txt -Encoding UTF8
 
           }
 
 
 
+      # ===============================
+      # 1 HTTPS扫描
+      # ===============================
 
       - name: Run scanner
         shell: powershell
+
         run: |
 
-          $ErrorActionPreference = "Stop"
-
-
-          python -X utf8 .\scanner.py
+          python -X utf8 scanner.py
 
 
 
-          if ($LASTEXITCODE -ne 0) {
-
-            throw "scanner failed"
-
-          }
-
-
-
+      # ===============================
+      # 2 VLESS真实测试
+      # ===============================
 
       - name: Run VLESS test
         shell: powershell
+
         run: |
 
-          $ErrorActionPreference = "Stop"
-
-
-          python -X utf8 .\vless_real_test.py
+          python -X utf8 vless_real_test.py
 
 
 
-          if ($LASTEXITCODE -ne 0) {
+      # ===============================
+      # 3 节点评分
+      # ===============================
 
-            throw "vless test failed"
+      - name: Score nodes
+        shell: powershell
+
+        run: |
+
+          python -X utf8 scorer.py
+
+
+          if (!(Test-Path ".\results\scored_nodes.json")) {
+
+            throw "scored_nodes.json missing"
 
           }
 
 
 
+      # ===============================
+      # 4 稳定性测试
+      # ===============================
 
       - name: Stability test
         shell: powershell
+
         run: |
 
-          $ErrorActionPreference = "Stop"
-
-
-          Write-Host "=============================="
-          Write-Host "STABILITY TEST"
-          Write-Host "=============================="
-
-
-          python -X utf8 .\stability.py
-
-
-
-          if ($LASTEXITCODE -ne 0) {
-
-            throw "stability failed"
-
-          }
-
+          python -X utf8 stability.py
 
 
           if (!(Test-Path ".\results\stability_nodes.json")) {
@@ -209,102 +187,72 @@ jobs:
 
 
 
-          Write-Host "stability_nodes.json OK"
 
-
-
-
+      # ===============================
+      # 5 最终选择
+      # ===============================
 
       - name: Final selector
         shell: powershell
+
         run: |
 
-          $ErrorActionPreference = "Stop"
-
-
-          python -X utf8 .\final_selector.py
+          python -X utf8 final_selector.py
 
 
 
-          if ($LASTEXITCODE -ne 0) {
+      # ===============================
+      # 6 输出
+      # ===============================
 
-            throw "final_selector failed"
+      - name: Prepare public
 
-          }
-
-
-
-
-      - name: Prepare public output
         shell: powershell
+
         run: |
-
-          $ErrorActionPreference = "Stop"
-
 
 
           New-Item `
-            -ItemType Directory `
-            -Force `
-            ".\public" |
-            Out-Null
-
-
-
-          Copy-Item `
-            ".\output\FINAL_subscription.txt" `
-            ".\public\subscription.txt" `
-            -Force
-
+          public `
+          -ItemType Directory `
+          -Force
 
 
           Copy-Item `
-            ".\output\FINAL_nodes.txt" `
-            ".\public\nodes.txt" `
-            -Force
-
+          output\FINAL_subscription.txt `
+          public\subscription.txt `
+          -Force
 
 
           Copy-Item `
-            ".\output\FINAL_summary.txt" `
-            ".\public\summary.txt" `
-            -Force
+          output\FINAL_nodes.txt `
+          public\nodes.txt `
+          -Force
 
+
+          Copy-Item `
+          output\FINAL_summary.txt `
+          public\summary.txt `
+          -Force
 
 
 
       - name: Commit output
+
         shell: powershell
+
         run: |
 
-          $ErrorActionPreference = "Stop"
 
+          git config user.name github-actions[bot]
 
-          git config user.name "github-actions[bot]"
-
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
 
 
           git add public
 
 
-
-          $changes = git status --porcelain
-
+          git commit -m "AutoCF update nodes" || echo no changes
 
 
-          if ($changes) {
-
-
-            git commit -m "AutoCF update nodes"
-
-            git push
-
-
-          }
-          else {
-
-            Write-Host "No changes"
-
-          }
+          git push
